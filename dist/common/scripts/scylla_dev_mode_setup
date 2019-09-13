@@ -1,0 +1,42 @@
+#!/usr/bin/python3
+#
+# Copyright 2018 ScyllaDB
+#
+
+#
+# This file is part of Scylla.
+#
+# Scylla is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# Scylla is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with Scylla.  If not, see <http://www.gnu.org/licenses/>.
+
+import os
+import sys
+import argparse
+from scylla_util import *
+
+if __name__ == '__main__':
+    if os.getuid() > 0:
+        print('Requires root permission.')
+        sys.exit(1)
+    parser = argparse.ArgumentParser(description='Modify Scylla running mode.')
+    parser.add_argument('--developer-mode', type=int, required=True,
+                        help='enable/disable developer mode')
+    args = parser.parse_args()
+
+    if args.developer_mode == 0:
+        with open('/etc/scylla.d/dev-mode.conf', 'w') as f:
+            f.close()
+    else:
+        cfg = sysconfig_parser('/etc/scylla.d/dev-mode.conf')
+        cfg.set('DEV_MODE', '--developer-mode=1')
+        cfg.commit()

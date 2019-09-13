@@ -1,3 +1,12 @@
 [submodule "seastar"]
 	path = seastar
-	url =  https://github.com/scylladb/seastar.git
+	url = git@github.com:scylladb/scylla-seastar
+[submodule "swagger-ui"]
+	path = swagger-ui
+	url = git@github.com:scylladb/scylla-swagger-ui
+[submodule "xxHash"]
+	path = xxHash
+	url = git@github.com:scylladb/xxHash
+[submodule "libdeflate"]
+	path = libdeflate
+	url = git@github.com:scylladb/libdeflate

@@ -1,0 +1,63 @@
+#!/usr/bin/python3
+#
+# Copyright 2018 ScyllaDB
+#
+
+#
+# This file is part of Scylla.
+#
+# Scylla is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# Scylla is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with Scylla.  If not, see <http://www.gnu.org/licenses/>.
+
+import os
+import re
+import sys
+import argparse
+import subprocess
+from scylla_util import *
+
+if __name__ == '__main__':
+    if os.getuid() > 0:
+        print('Requires root permission.')
+        sys.exit(1)
+    parser = argparse.ArgumentParser(description='Optimize boot parameter settings for Scylla.')
+    parser.add_argument('--ami', action='store_true', default=False,
+                        help='setup AMI instance')
+    args = parser.parse_args()
+
+    if not args.ami:
+        sys.exit(0)
+    if not os.path.exists('/etc/default/grub') and not os.path.exists('/boot/grub/menu.lst'):
+        print('Unsupported bootloader')
+        sys.exit(1)
+
+    if os.path.exists('/etc/default/grub'):
+        cfg = sysconfig_parser('/etc/default/grub')
+        cmdline_linux = cfg.get('GRUB_CMDLINE_LINUX')
+        if len(re.findall(r'.*clocksource', cmdline_linux)) == 0:
+            cmdline_linux += ' clocksource=tsc tsc=reliable'
+            cfg.set('GRUB_CMDLINE_LINUX', cmdline_linux)
+            cfg.commit()
+            if is_debian_variant():
+                run('update-grub')
+            else:
+                run('grub2-mkconfig -o /boot/grub2/grub.cfg')
+
+#    if is_ec2() and os.path.exists('/boot/grub/menu.lst'):
+    if os.path.exists('/boot/grub/menu.lst'):
+        with open('/boot/grub/menu.lst') as f:
+            cur = f.read()
+        if len(re.findall(r'^\s*kernel.*clocksource', cur, flags=re.MULTILINE)) == 0:
+            new = re.sub(r'(^\s*kernel.*)', r'\1 clocksource=tsc tsc=reliable ', cur, flags=re.MULTILINE)
+            with open('/boot/grub/menu.lst', 'w') as f:
+                f.write(new)

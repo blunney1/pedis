@@ -1,0 +1,74 @@
+#!/usr/bin/python3
+#
+# Copyright 2018 ScyllaDB
+#
+
+#
+# This file is part of Scylla.
+#
+# Scylla is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# Scylla is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with Scylla.  If not, see <http://www.gnu.org/licenses/>.
+
+import os
+import sys
+import tempfile
+import tarfile
+from scylla_util import *
+
+VERSION='0.17.0'
+INSTALL_DIR='/usr/lib/scylla/Prometheus/node_exporter'
+
+if __name__ == '__main__':
+    if os.getuid() > 0:
+        print('Requires root permission.')
+        sys.exit(1)
+
+    if os.path.exists('/usr/bin/node_exporter') or os.path.exists('/usr/bin/prometheus-node_exporter'):
+        print('node_exporter already installed')
+        sys.exit(1)
+
+    if is_gentoo_variant():
+        run('emerge -uq app-metrics/node_exporter')
+        if is_systemd():
+            print('app-metrics/node_exporter does not install systemd service files, please fill a bug if you need them.')
+            sys.exit(1)
+        else:
+            run('rc-update add node_exporter default')
+            run('rc-service node_exporter start')
+    else:
+        data = curl('https://github.com/prometheus/node_exporter/releases/download/v{version}/node_exporter-{version}.linux-amd64.tar.gz'.format(version=VERSION), byte=True)
+        with open('/var/tmp/node_exporter-{version}.linux-amd64.tar.gz'.format(version=VERSION), 'wb') as f:
+            f.write(data)
+        with tarfile.open('/var/tmp/node_exporter-{version}.linux-amd64.tar.gz'.format(version=VERSION)) as tf:
+            tf.extractall(INSTALL_DIR)
+        os.remove('/var/tmp/node_exporter-{version}.linux-amd64.tar.gz'.format(version=VERSION))
+        os.symlink('{install_dir}/node_exporter-{version}.linux-amd64/node_exporter'.format(install_dir=INSTALL_DIR, version=VERSION), '/usr/bin/node_exporter')
+        if is_systemd():
+            node_exporter = systemd_unit('node-exporter.service')
+            node_exporter.enable()
+            node_exporter.start()
+        else:
+            conf = '''
+# Run node_exporter
+
+start on startup
+
+script
+   /usr/bin/node_exporter
+end script
+'''[1:-1]
+            with open('/etc/init/node_exporter.conf', 'w') as f:
+                f.write(conf)
+            run('service node_exporter start')
+
+    print('node_exporter successfully installed')
